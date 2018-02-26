@@ -1,0 +1,123 @@
+WebSocket实时更新mysql数据到页面，使用websocket的初衷是，要实时更新mysql中的报警信息到web页面显示
+没怎么碰过web，代码写的是真烂，不过也算是功能实现了，放在这里也是鞭策自己，web也要多下些功夫。
+
+准备引入依赖
+<dependency>
+  <groupid>mysql</groupid>
+  mysql-connector-java</artifactid>
+  <version>5.1.38</version>
+</dependency>
+<dependency>
+  <groupid>javax</groupid>
+  javaee-api</artifactid>
+  <version>7.0</version>
+  <scope>provided</scope>
+</dependency>
+
+jdbc从数据库中读取数据
+
+public class DBUtil {
+ 
+    public List getFromDB() throws SQLException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+        List list=new ArrayList();
+ 
+        String dirver="com.mysql.jdbc.Driver";
+        String user="root";
+        String psd="root";
+        String database="streamingproblem";
+        String tablename="problem";
+        String url="jdbc:mysql://172.17.11.120:3306/"+database+"?user="+user+"&password="+psd;
+        Class.forName(dirver).newInstance();
+        Connection conn= DriverManager.getConnection(url);
+        Statement stat=conn.createStatement();
+        String sql="select * from "+tablename;
+        ResultSet rs=stat.executeQuery(sql);
+        while (rs.next()){
+            AlarmMessage alarmMessage=new AlarmMessage(rs.getString(2),rs.getString(3),rs.getString(4));
+            list.add(alarmMessage);
+        }
+        rs.close();
+        stat.close();
+        conn.close();
+        return list;
+    }
+ 
+}</alarmmessage></alarmmessage></alarmmessage>
+开始写websocket
+写一个线程用于发送新数据到页面，run中开启无限循环，用一个变量 currentIndex 记录当前数据量，当有新数据时，发送新数据
+
+import javax.websocket.Session;
+public class OneThread extends Thread {
+    private Session session;
+    private List currentMessage;
+    private DBUtil dbUtil;
+    private int currentIndex;
+ 
+    public OneThread(Session session) {
+        this.session = session;
+        currentMessage = new ArrayList();
+        dbUtil = new DBUtil();
+        currentIndex = 0;//此时是0条消息
+    }
+ 
+    @Override
+    public void run() {
+        while (true) {
+            List list = null;
+            try {
+                try {
+                    list = dbUtil.getFromDB();
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (InstantiationException e) {
+                    e.printStackTrace();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            if (list != null && currentIndex < list.size()) {
+                for (int i = currentIndex; i < list.size(); i++) {
+                    try {
+                        session.getBasicRemote().sendText(list.get(i).getFanNo()
+                                + "," + list.get(i).getTime()
+                                + "," + list.get(i).getDescription());
+//                            session.getBasicRemote().sendObject(list.get(i)); //No encoder specified for object of class [class AlarmMessage]
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                currentIndex = list.size();
+            }
+            try {
+                //一秒刷新一次
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+ 
+        }
+    }
+}</alarmmessage></alarmmessage></alarmmessage>
+在onopen中启动发送数据线程
+
+import javax.websocket.OnOpen;
+import javax.websocket.Session;
+import javax.websocket.server.ServerEndpoint;
+ 
+@ServerEndpoint("/websocket")
+public class websocket {
+ 
+    @OnOpen
+    public void onOpen(Session session){
+        OneThread thread =null;
+        thread=new OneThread(session);
+        thread.start();
+    }
+}
+js实现websocket客户端
+
+<%@ page import="java.sql.*" %>
+<script type="text/javascript"> //先检验能不能运行起来，能不能连上，自动推送数据，先不做数据显示 //客户端就会与服务器进行连接 var webSocket = new WebSocket("ws://localhost:8081/websocket"); //这里只是调试用 //连接失败时回调 webSocket.onerror = function (event) { makeDataOnWeb("error"); }; //这里只是调试用 //连接成功时回调，真的会执行括号中的代码！ webSocket.onopen = function (event) { makeDataOnWeb("conn success"); }; webSocket.onmessage = function (event) { makeDataOnWeb(event.data); }; //这里只是调试用 webSocket.onclose = function (event) { makeDataOnWeb("conn close"); }; function makeDataOnWeb(data) { var a = data; var pNode = document.getElementById("view"); var liNode = document.createElement("li"); liNode.innerHTML = a; pNode.appendChild(liNode); // pNode.insertBefore(liNode, pNode.children[0]); //不能用insertAfter，好像不是这么用的 // var pNode = document.getElementById("view"); // var trNode = document.createElement("tr"); // var td1 = document.createElement("td"); // var td2 = document.createElement("td"); // var td3 = document.createElement("td"); // td1.innerHTML = a; // td2.innerHTML = a; // td3.innerHTML = a; // trNode.appendChild(td1) // trNode.appendChild(td2) // trNode.appendChild(td3) // var head = document.getElementById("head"); // document.write(a+"
+");//直接写 // document.getElementsById("a").innerHTML="fadfadfa";//不输出任何内容 }; </script><%@page contentType="text/html; utf8" %> <%@page language="java" %> <%@page import="java.sql.*" %> <%@page pageEncoding="UTF-8" %>

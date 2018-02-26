@@ -1,0 +1,95 @@
+終於把WEBSOCKET建起來
+
+WebSocket是一個相對比較新的技術, 是HTML 5的一部份, 2011年才成為標準, 比較新的瀏覽器版本都有支援.
+WebSocket其實是一個讓瀏覽器(網頁)與伺服器端建立TCP連線的方式, 也就是有TCP的特性, 保持連線, 雙向通訊.
+
+網頁會用到這個技術, 常見的原因是資料的即時性, 例如股票網頁, 以及Server Push. 在WebSocket以前, 都是靠一些像Long Polling這樣的技術去完成的, 例如Plurk網站.
+WebSocket的特性, 是透過HTTP通知伺服器, 請求建立一個連線, 在連線建立之後, 就跟HTTP沒有關係了. 這是很重要的觀念. WebSocket本身沒有定義傳輸內容, spring則是可以選擇搭配STOMP這個subprotocol使用. 理論上沒有使用STOMP的設定會比較簡單, 但我沒有測試成功.
+spring提供了一套不錯的解決方案, 網頁端可以利用sockjs跟伺服器端的endpoint連線. 對題是你要知道如何使用! 我看完spring的docs websocket那一個chapter, 也嘗試了很久才成功, 並不是很容易理解.
+首先, 準備一個最簡化的MVC專案, 我用的是java設定, 而不是xml設定, 因為WebSocket相關的教學很多都沒有在用xml了, 如果用xml設定MVC, 又用java設定WebSocket, 非常有可能產生問題.
+先講dependency, 很奇怪的是spring 4.1.6並沒有對應的websocket版本, 剛好4.1.7出現, 才解決了這個問題, 之前用4.1.6配4.0.1的websocket都是一堆錯誤. 以下lib全部都用4.1.7版. spring-webmvc, spring-context, spring-web, spring-websocket, spring-messaging.
+
+接下來在MVC專案裡要新增一個WebSocket的設定檔, 程式如下
+
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
+
+@Override
+public void configureMessageBroker(MessageBrokerRegistry config) {
+config.enableSimpleBroker("/topic");
+config.setApplicationDestinationPrefixes("/app");
+}
+
+@Override
+public void registerStompEndpoints(StompEndpointRegistry registry) {
+registry.addEndpoint("/hello").withSockJS();
+}
+
+}
+
+
+STOMP的其中一種模式是訂閱, 客戶端透過訂閱主題就可以收到伺服器送過來的更新, registerStompEndpoints是註駐端點, 讓客戶建立連線用的. configureMessageBroker建立一個可以被訂閱的topic.
+
+下一步是在MVC的controller裡處理接到到的message.
+@MessageMapping("/hello")
+@SendTo("/topic/greetings")
+public DataMessage greeting(HelloMessage hello) throws InterruptedException
+{
+Thread.sleep(3000); // simulated delay
+        //return new Greeting("hi return");
+return new DataMessage();
+}
+MessageMapping是指接收, SendTo回傳的目的地. 這裡有點混亂, 我想MessageMapping並不需要跟Endpoint同名字才對, 這個設定真正的作用, 看client side的程式就會比較清楚. DataMessage跟HelloMessage都是POJO, 只需要有定義getter, 就會被轉換成JSON, 封裝進STOMP裡面傳送.
+
+接下來是client side的javascript
+var stompClient = null;
+function connect() {
+var socket = new SockJS('/myMVCWeb/hello');
+stompClient = Stomp.over(socket);
+stompClient.connect({}, function(frame) {
+stompClient.subscribe('/topic/greetings',
+function(greeting) {
+showGreeting(JSON.parse(greeting.body).content);}); 
+});
+}
+
+function disconnect() {
+if (stompClient != null) {
+stompClient.disconnect();}
+}
+
+function showGreeting(message) {
+var response = document.getElementById('response');
+var p = document.createElement('p');
+p.style.wordWrap = 'break-word';
+p.appendChild(document.createTextNode(message));
+response.appendChild(p); 
+}
+分別有三個方法, connect, disconnect, showGreeting. connect會建立一個stomp client, 注意在new SockJS時, 要傳參數為endpoint的'URL', 所以/hello端點前面會帶我們MVC專案的名稱. 接下來透過這個連線, 訂閱/topic/greetings. 注意這個並不是'URL', 因為WebSocket連線是跟HTTP無關的, 前面講的重點. 訂閱時同時定義接收到伺服器資料的處理方式, 就是showGreeting(). 最後不需要連線時用disconnect()中止.
+
+WebSocket這種訂閱方式有一個很討厭的地方, 因為他是非直接連線, 所以有可能會遇到伺服器送資料, client沒收到, 但你也不會有任何錯誤訊息, 可能是你訂閱的topic不對. 不過就算你訂閱的topic不存在, 也不會有任何錯誤訊息.
+
+spring的WebSocket還有很多種使用方式, 我還不太會. 另外, WebSocket並不像HTTP需要一問一答, 在沒有收到任何request的情況下, 伺服器也可以把資料送出去, 例如使用MessageSendingOperations的ConvertAndSend(). 範例如下
+@Component
+public class ServerPush implements
+ApplicationListener<BrokerAvailabilityEvent> {
+
+private final MessageSendingOperations<String> messagingTemplate;
+
+@Autowired
+public ServerPush (
+final MessageSendingOperations<String> messagingTemplate) {
+this.messagingTemplate = messagingTemplate;
+}
+
+@Override
+public void onApplicationEvent(final BrokerAvailabilityEvent event) {
+}
+
+@Scheduled(fixedDelay = 1000)
+public void sendDataUpdates() {
+this.messagingTemplate.convertAndSend("/topic/greetings",
+"hello again");
+}
+ApplicationListener, BrokerAvailabilityEvent, onApplicationEvent這些是做甚麼的我也不知道, 但是我用@Scheduled設定每秒執行一次sendDataUpdates(), 透過convertAndSend把資料送給/topic/greetings.

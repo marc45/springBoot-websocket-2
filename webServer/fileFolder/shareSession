@@ -1,0 +1,150 @@
+共享Session
+WebsocketSTOMPConfig:
+
+@Configuration
+@EnableWebSocketMessageBroker
+@ConditionalOnWebApplication
+public class WebsocketSTOMPConfig extends AbstractSessionWebSocketMessageBrokerConfigurer<ExpiringSession> {
+    /**
+    *  AbstractSessionWebSocketMessageBrokerConfigurer实现了在handshake时获取httpsession，并且每次websocket消息发生时也刷新了httpsession的时间。同时在websocket session中加入了SPRING.SESSION.ID字段。
+    */
+    @Override
+    protected void configureStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                // 在握手时就获得user，判断是否登录。
+           .addInterceptors(new SessionAuthHandshakeInterceptor())
+           .setHandshakeHandler(new DefaultHandshakeHandler(){
+               @Override
+               protected Principal determineUser(ServerHttpRequest request, WebSocketHandler wsHandler, Map<String, Object> attributes) {
+                   return new MyPrincipal((User) attributes.get("user"));
+               }
+           })
+           .setAllowedOrigins("http://127.0.0.1:8081");
+    }
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.setInterceptors(new ChannelInterceptorAdapter() {
+            @Override
+            public Message<?> preSend(Message<?> message, MessageChannel channel) {
+                System.out.println("recv : "+message);
+                StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+                User user = (User)accessor.getSessionAttributes().get("user");
+                return super.preSend(message, channel);
+            }
+
+        });
+    }
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.setInterceptors(new ChannelInterceptorAdapter() {
+            @Override
+            public Message<?> preSend(Message<?> message, MessageChannel channel) {
+                System.out.println("send: "+message);
+                return super.preSend(message, channel);
+            }
+        });
+    }
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        // 这是配置到 @MessageMapping Controller
+        config.setApplicationDestinationPrefixes("/app");
+        // 直接到broker  message handler
+        config.enableSimpleBroker("/topic", "/queue");
+
+    }
+    class MyPrincipal implements Principal{
+        private User user;
+        public MyPrincipal(User user) {
+            this.user = user;
+        }
+
+        @Override
+        public String getName() {
+            return String.valueOf(user.getId());
+        }
+    }
+}
+
+
+SessionAuthHandshakeInterceptor： 这是自定义的握手拦截，获取已登录的User
+
+public class SessionAuthHandshakeInterceptor implements HandshakeInterceptor {
+
+    private Logger logger = LoggerFactory.getLogger(this.getClass());
+
+    @Override
+    public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
+        HttpSession session = getSession(request);
+        if(session==null || session.getAttribute("user")==null){
+            logger.error("websocket权限拒绝");
+            return false;
+        }
+        attributes.put("user",session.getAttribute("user"));
+        return true;
+    }
+
+    @Override
+    public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler, Exception exception) {
+
+    }
+
+    // 参考 HttpSessionHandshakeInterceptor
+    private HttpSession getSession(ServerHttpRequest request) {
+        if (request instanceof ServletServerHttpRequest) {
+            ServletServerHttpRequest serverRequest = (ServletServerHttpRequest) request;
+            return serverRequest.getServletRequest().getSession(false);
+        }
+        return null;
+    }
+}
+
+
+
+
+然后在configureClientInboundChannel中可以通过以下获得User：
+
+StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+User user = (User)accessor.getSessionAttributes().get("user");
+还有一种获得User的方式，可以在WebsocketSTOMPConfig中注入SessionRepository来获得springsession：
+
+StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+sessionRepository.getSession((String) accessor.getSessionAttributes().get("SPRING.SESSION.ID"))
+设置Principal
+Spring提供了"/user"前缀专门用于精准推送单个用户。
+
+client 订阅 "/user/queue/msg"，spring通过UserDestinationMessageHandler重新设置client的订阅地址，使与"/user/{username}/queue/msg"绑定。
+
+前端代码：
+
+var url = "ws://"+window.location.host+"/project/ws";
+var client = Stomp.client(url);
+client.connect({}, function (message) {
+    const subscription = client.subscribe("/user/queue/msg", function () {});
+    client.send("/app/test2", {}, "Hello, STOMP");
+},function (err) {
+    alert(err);
+});
+Controller:
+
+@Controller
+public class MsgController {
+
+    private Logger logger = LoggerFactory.getLogger(this.getClass());
+    @Autowired
+    private SimpMessagingTemplate simpMessagingTemplate;
+
+    @MessageMapping("/test2")
+    public void test(String str, Principal principal){
+     simpMessagingTemplate.convertAndSendToUser(principal.getName(),"/queue/msg","haha2");
+    }
+}
+在WebsocketSTOMPConfig中的configureStompEndpoints配置：
+
+registry.addEndpoint("/ws")
+   .addInterceptors(new SessionAuthHandshakeInterceptor())
+   .setHandshakeHandler(new DefaultHandshakeHandler(){
+       @Override
+       protected Principal determineUser(ServerHttpRequest request, WebSocketHandler wsHandler, Map<String, Object> attributes) {
+          return new MyPrincipal((User) attributes.get("user"));
+       }
+   });
