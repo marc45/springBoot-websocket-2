@@ -8,6 +8,7 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Controller;
@@ -43,6 +44,14 @@ public class PortfolioController {
 		trade.setUsername(principal.getName());
 		logger.debug("Trade: " + trade);
 		this.tradeService.executeTrade(trade);
+	}
+
+	@SubscribeMapping("/subscribePortfolio")
+	@SendTo("/topic/subscribePortfolio")
+	public Portfolio getLatestPositionsByName(String name) {
+		Portfolio portfolio = this.portfolioService.findPortfolio(name);
+		logger.debug("Portfolio is : " + portfolio.toString());
+		return portfolio;
 	}
 
 	@MessageExceptionHandler
