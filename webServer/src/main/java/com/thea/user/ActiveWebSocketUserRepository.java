@@ -10,7 +10,4 @@ public interface ActiveWebSocketUserRepository extends CrudRepository<ActiveWebS
 	@Query("select DISTINCT(u.username) from ActiveWebSocketUser u where u.username != ?#{principal?.username}")
 	List<String> findAllActiveUsers();
 
-	@Query("select DISTINCT(u.id) from ActiveWebSocketUser u where u.id = {id}")
-	ActiveWebSocketUser findById(String id);
-
 }

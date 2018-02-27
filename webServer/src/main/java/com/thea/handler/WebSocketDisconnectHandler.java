@@ -6,15 +6,18 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import com.thea.user.ActiveWebSocketUser;
 import com.thea.user.ActiveWebSocketUserRepository;
 
 public class WebSocketDisconnectHandler<S> implements ApplicationListener<SessionDisconnectEvent> {
 	private ActiveWebSocketUserRepository repository;
+	private SimpMessageSendingOperations messageSendingOperations;
 
 	public WebSocketDisconnectHandler(SimpMessageSendingOperations messagingTemplate,
 			ActiveWebSocketUserRepository repository) {
 		super();
 		this.repository = repository;
+		this.messageSendingOperations = messagingTemplate;
 	}
 
 	@Override
@@ -23,9 +26,10 @@ public class WebSocketDisconnectHandler<S> implements ApplicationListener<Sessio
 		if (id == null) {
 			return;
 		}
-		this.repository.findById(id).ifPresent(user -> {
-			this.repository.deleteById(id);
-			this.messagingTemplate.convertAndSend("/topic/friends/signout", Arrays.asList(user.getUsername()));
-		});
+		if (this.repository.findOne(id) != null) {
+			ActiveWebSocketUser user = this.repository.findOne(id);
+			this.repository.delete(id);
+			this.messageSendingOperations.convertAndSend("/topic/friends/signout", Arrays.asList(user.getUsername()));
+		}
 	}
 }
