@@ -10,14 +10,19 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import com.thea.security.UserRepositoryUserDetailsService;
+import com.thea.user.SysUser;
+
 @Configuration
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Autowired
-	public void configureGlobal(AuthenticationManagerBuilder auth, UserDetailsService userDetailsService)
-			throws Exception {
-		auth.userDetailsService(userDetailsService).passwordEncoder(new BCryptPasswordEncoder());
+	private UserRepositoryUserDetailsService userDetailsService;
+
+	@Autowired
+	public void configureGlobal(AuthenticationManagerBuilder auth) throws Exception {
+		auth.userDetailsService(userDetailsService).passwordEncoder(SysUser.PASSWORD_ENCODER);
 	}
 
 	@Override

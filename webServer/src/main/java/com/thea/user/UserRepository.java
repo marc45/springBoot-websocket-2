@@ -1,8 +1,9 @@
 package com.thea.user;
 
-import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.Repository;
 
-public interface UserRepository extends CrudRepository<User, Long> {
+public interface UserRepository extends Repository<SysUser, Long> {
 
-	User findByEmail(String email);
+	SysUser findByName(String name);
+	SysUser save(SysUser user);
 }

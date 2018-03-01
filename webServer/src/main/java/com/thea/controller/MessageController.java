@@ -11,7 +11,7 @@ import org.springframework.stereotype.Controller;
 import com.thea.security.CurrentUser;
 import com.thea.user.ActiveWebSocketUserRepository;
 import com.thea.user.InstantMessage;
-import com.thea.user.User;
+import com.thea.user.SysUser;
 
 @Controller
 public class MessageController {
@@ -26,7 +26,7 @@ public class MessageController {
 	}
 
 	@MessageMapping("/im")
-	public void im(InstantMessage im, @CurrentUser User currentUser) {
+	public void im(InstantMessage im, @CurrentUser SysUser currentUser) {
 		im.setFrom(currentUser.getEmail());
 		this.messagingTemplate.convertAndSendToUser(im.getTo(), "/queue/messages", im);
 		this.messagingTemplate.convertAndSendToUser(im.getFrom(), "/queue/messages", im);
