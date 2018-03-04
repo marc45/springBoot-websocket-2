@@ -30,6 +30,7 @@ public class SysUser {
 
 	@NotEmpty(message = "Password is required.")
 	private @JsonIgnore String password;
+
 	private String[] roleArr;
 
 	public SysUser() {
@@ -45,32 +46,4 @@ public class SysUser {
 		this.password = PASSWORD_ENCODER.encode(password);
 	}
 
-	public Long getId() {
-		return id;
-	}
-
-	public void setId(Long id) {
-		this.id = id;
-	}
-
-	public String getUsername() {
-		return username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
-	}
-
-	public String[] getRoleArr() {
-		return roleArr;
-	}
-
-	public void setRoleArr(String[] roleArr) {
-		this.roleArr = roleArr;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-	
 }

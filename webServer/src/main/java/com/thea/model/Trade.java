@@ -1,51 +1,24 @@
 package com.thea.model;
 
+import lombok.Data;
+
+@Data
 public class Trade {
-	private String ticker;
-	private int shares;
-	private TradeAction action;
-	private String username;
 
-	public String getTicker() {
-		return this.ticker;
-	}
+	private int tradeID;
+	private int tradeIdVersion;
+	private String tradeType;
+	private String tradeSubType;
+	private int initDate;
+	private final long timestamp;
 
-	public void setTicker(String ticker) {
-		this.ticker = ticker;
-	}
-
-	public int getShares() {
-		return this.shares;
-	}
-
-	public void setShares(int shares) {
-		this.shares = shares;
-	}
-
-	public TradeAction getAction() {
-		return this.action;
-	}
-
-	public void setAction(TradeAction action) {
-		this.action = action;
-	}
-
-	public String getUsername() {
-		return this.username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
-	}
-
-	@Override
-	public String toString() {
-		return "[ticker=" + this.ticker + ", shares=" + this.shares + ", action=" + this.action + ", username="
-				+ this.username + "]";
-	}
-
-	public enum TradeAction {
-		Buy, Sell;
+	public Trade(int tradeID, int tradeIdVersion, String tradeType, String tradeSubType, int initDate) {
+		this.tradeID = tradeID;
+		this.tradeIdVersion = tradeIdVersion;
+		this.tradeType = tradeType;
+		this.tradeSubType = tradeSubType;
+		this.initDate = initDate;
+		this.timestamp = System.currentTimeMillis();
 	}
 
 }

@@ -9,9 +9,11 @@ public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBro
 
 	@Override
 	protected void configureInbound(MessageSecurityMetadataSourceRegistry messages) {
-		messages.simpMessageDestMatchers("/queue/**", "/topic/**").denyAll()
-				.simpSubscribeDestMatchers("/queue/**/*-user*", "/topic/**/*-user*").denyAll().anyMessage()
-				.authenticated();
+		messages.nullDestMatcher().authenticated()
+				.simpSubscribeDestMatchers("/user/queue/errors").permitAll()
+				.simpMessageDestMatchers("/queue/**", "/topic/**").denyAll()
+				.simpSubscribeDestMatchers("/queue/**/*-user*", "/topic/**/*-user*").denyAll()
+				.anyMessage().authenticated();
 	}
 
 }

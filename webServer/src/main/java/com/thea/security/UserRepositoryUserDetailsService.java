@@ -22,7 +22,7 @@ public class UserRepositoryUserDetailsService implements UserDetailsService {
 
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		SysUser sysuser = this.userRepository.findByName(username);
+		SysUser sysuser = this.userRepository.findByUsername(username);
 		if (sysuser == null) {
 			throw new UsernameNotFoundException("Could not find user " + username);
 		}
