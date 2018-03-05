@@ -37,16 +37,18 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 		return new WebMvcConfigurerAdapter() {
 			@Override
 			public void addCorsMappings(CorsRegistry registry) {
-				registry.addMapping("/**").allowedOrigins("http://127.0.0.1:8088");
+				registry.addMapping("/**").allowedOrigins("http://localhost:8088");
 			}
 		};
 	}
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
-		http.cors().and().csrf().disable().authorizeRequests().antMatchers("/").permitAll().antMatchers("/user/**")
-				.hasRole("USER").and().formLogin().loginPage("/login").defaultSuccessUrl("/user").and().logout()
-				.logoutUrl("/logout").logoutSuccessUrl("/login");
+		http.formLogin().loginPage("/login").and().authorizeRequests().antMatchers("/csrf").permitAll().anyRequest()
+				.authenticated().and().formLogin();
+		// http.cors().and().csrf().disable().authorizeRequests().antMatchers("/").permitAll().antMatchers("/user/**")
+		// .hasRole("USER").and().formLogin().loginPage("/login").defaultSuccessUrl("/user").and().logout()
+		// .logoutUrl("/logout").logoutSuccessUrl("/login");
 	}
 
 }
